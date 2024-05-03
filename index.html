@@ -128,6 +128,7 @@
             <ul id="chat-messages"></ul>
             <input type="text" id="chat-input" placeholder="Type a message">
             <button onclick="sendMessage()">Send</button>
+            <button onclick="clearChat()">Clear Chat</button>
         </div>
     </div>
 
@@ -162,16 +163,9 @@
         });
 
         function loadTasks() {
-            // Fetch tasks from PubNub
-            pubnub.history({
-                channel: 'tasks',
-                count: 100
-            }, function(status, response) {
-                if (status.statusCode === 200) {
-                    response.messages.forEach(function(msg) {
-                        handleTaskMessage(msg.entry);
-                    });
-                }
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            tasks.forEach(function(task) {
+                handleTaskMessage(JSON.stringify(task));
             });
         }
 
@@ -199,12 +193,6 @@
                 completeTask(task);
             });
             listItem.appendChild(completeButton);
-            const editButton = document.createElement('button');
-            editButton.textContent = 'Edit';
-            editButton.addEventListener('click', function() {
-                editTask(task);
-            });
-            listItem.appendChild(editButton);
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', function() {
@@ -232,6 +220,9 @@
                     priority,
                     notes: taskNotes
                 };
+                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                tasks.push(task);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
                 pubnub.publish({
                     channel: 'tasks',
                     message: JSON.stringify(task)
@@ -241,22 +232,11 @@
 
         function completeTask(task) {
             task.completed = !task.completed;
-            pubnub.publish({
-                channel: 'tasks',
-                message: JSON.stringify(task)
-            });
-        }
-
-        function editTask(task) {
-            const newDescription = prompt('Enter new description:', task.description);
-            const newNotes = prompt('Enter new notes:', task.notes);
-            const newDueDate = prompt('Enter new due date:', task.dueDate);
-            const newPriority = prompt('Enter new priority:', task.priority);
-            if (newDescription !== null || newNotes !== null || newDueDate !== null || newPriority !== null) {
-                task.description = newDescription !== null ? newDescription : task.description;
-                task.notes = newNotes !== null ? newNotes : task.notes;
-                task.dueDate = newDueDate !== null ? newDueDate : task.dueDate;
-                task.priority = newPriority !== null ? newPriority : task.priority;
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks[index] = task;
+                localStorage.setItem('tasks', JSON.stringify(tasks));
                 pubnub.publish({
                     channel: 'tasks',
                     message: JSON.stringify(task)
@@ -265,10 +245,16 @@
         }
 
         function deleteTask(task) {
-            pubnub.publish({
-                channel: 'tasks',
-                message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
-            });
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks.splice(index, 1);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
+                });
+            }
         }
 
         function filterTasks() {
@@ -276,16 +262,9 @@
         }
 
         function loadChatMessages() {
-            // Fetch chat messages from PubNub
-            pubnub.history({
-                channel: 'chat',
-                count: 100
-            }, function(status, response) {
-                if (status.statusCode === 200) {
-                    response.messages.forEach(function(msg) {
-                        handleChatMessage(msg.entry);
-                    });
-                }
+            const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            chatMessages.forEach(function(message) {
+                handleChatMessage(message);
             });
         }
 
@@ -300,12 +279,20 @@
             const messageInput = document.getElementById('chat-input');
             const message = messageInput.value.trim();
             if (message) {
+                const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+                chatMessages.push(message);
+                localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
                 pubnub.publish({
                     channel: 'chat',
                     message
                 });
                 messageInput.value = '';
             }
+        }
+
+        function clearChat() {
+            localStorage.removeItem('chatMessages');
+            document.getElementById('chat-messages').innerHTML = '';
         }
     </script>
 </body>
