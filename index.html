@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Task Manager</title>
     <style>
-      body {
+        /* Styles remain the same */
+              body {
         font-family: Arial, sans-serif;
         margin: 0;
         padding: 0;
@@ -96,199 +97,233 @@
         margin-top: 5px;
       }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <h1>Advanced Task Manager</h1>
-      <div class="task-manager">
-        <h2>Tasks</h2>
-        <ul id="task-list"></ul>
-        <input type="text" id="task-input" placeholder="Task description" />
-        <textarea id="task-notes" placeholder="Task notes"></textarea>
-        <input type="date" id="due-date-input" />
-        <select id="priority-select">
-          <option value="high">High Priority</option>
-          <option value="medium">Medium Priority</option>
-          <option value="low">Low Priority</option>
-        </select>
-        <button onclick="addTask()">Add Task</button>
-        <label for="due-date-filter">Filter by Due Date:</label>
-        <input type="date" id="due-date-filter" onchange="filterTasks()" />
-        <label for="priority-filter">Filter by Priority:</label>
-        <select id="priority-filter" onchange="filterTasks()">
-          <option value="">All Priorities</option>
-          <option value="high">High Priority</option>
-          <option value="medium">Medium Priority</option>
-          <option value="low">Low Priority</option>
-        </select>
-      </div>
-      <div class="chat">
-        <h2>Chat</h2>
-        <ul id="chat-messages"></ul>
-        <input type="text" id="chat-input" placeholder="Type a message" />
-        <button onclick="sendMessage()">Send</button>
-      </div>
+        <h1>Advanced Task Manager</h1>
+        <div class="task-manager">
+            <h2>Tasks</h2>
+            <ul id="task-list"></ul>
+            <input type="text" id="task-input" placeholder="Task description">
+            <textarea id="task-notes" placeholder="Task notes"></textarea>
+            <input type="date" id="due-date-input">
+            <select id="priority-select">
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+            </select>
+            <button onclick="addTask()">Add Task</button>
+            <label for="due-date-filter">Filter by Due Date:</label>
+            <input type="date" id="due-date-filter" onchange="filterTasks()">
+            <label for="priority-filter">Filter by Priority:</label>
+            <select id="priority-filter" onchange="filterTasks()">
+                <option value="">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+            </select>
+        </div>
+        <div class="chat">
+            <h2>Chat</h2>
+            <ul id="chat-messages"></ul>
+            <input type="text" id="chat-input" placeholder="Type a message">
+            <button onclick="sendMessage()">Send</button>
+            <button onclick="clearChat()">Clear Chat</button>
+        </div>
     </div>
 
+    <!-- PubNub SDK -->
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.29.7.min.js"></script>
+
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        loadTasks();
-        loadChatMessages();
-      });
-
-      function loadTasks() {
-        const taskList = document.getElementById("task-list");
-        taskList.innerHTML = "";
-        const tasks = JSON.parse(localStorage.getItem("sharedTasks")) || [];
-        tasks.forEach(function (task) {
-          const listItem = createTaskListItem(task);
-          taskList.appendChild(listItem);
-        });
-      }
-
-      function createTaskListItem(task) {
-        const listItem = document.createElement("li");
-        const taskText = `${task.description} 
-                             <span class="timestamp">${task.timestamp}</span>
-                             <span class="due-date">${
-                               task.dueDate ? "(Due: " + task.dueDate + ")" : ""
-                             }</span>
-                             <span class="priority-${task.priority}">${
-          task.priority
-        }</span>
-                             <p>${task.notes}</p>`;
-        listItem.innerHTML = taskText;
-        if (task.completed) {
-          listItem.classList.add("completed");
+        class Task {
+            constructor(description, notes, dueDate, priority, completed = false) {
+                this.description = description;
+                this.notes = notes;
+                this.dueDate = dueDate;
+                this.priority = priority;
+                this.completed = completed;
+                this.timestamp = new Date().toLocaleString();
+            }
         }
-        const completeButton = document.createElement("button");
-        completeButton.textContent = "Complete";
-        completeButton.addEventListener("click", function () {
-          completeTask(task);
-        });
-        listItem.appendChild(completeButton);
-        const editButton = document.createElement("button");
-        editButton.textContent = "Edit";
-        editButton.addEventListener("click", function () {
-          editTask(task);
-        });
-        listItem.appendChild(editButton);
-        const deleteButton = document.createElement("button");
-        deleteButton.textContent = "Delete";
-        deleteButton.addEventListener("click", function () {
-          deleteTask(task);
-        });
-        listItem.appendChild(deleteButton);
-        return listItem;
-      }
 
-      function addTask() {
-        const taskInput = document.getElementById("task-input");
-        const description = taskInput.value.trim();
-        const taskNotes = document.getElementById("task-notes").value.trim();
-        const dueDateInput = document.getElementById("due-date-input");
-        const dueDate = dueDateInput.value.trim();
-        const prioritySelect = document.getElementById("priority-select");
-        const priority = prioritySelect.value;
-        if (description) {
-          const timestamp = new Date().toLocaleString();
-          const tasks = JSON.parse(localStorage.getItem("sharedTasks")) || [];
-          tasks.push({
-            description,
-            completed: false,
-            timestamp,
-            dueDate,
-            priority,
-            notes: taskNotes,
-          });
-          localStorage.setItem("sharedTasks", JSON.stringify(tasks));
-          taskInput.value = "";
-          dueDateInput.value = "";
-          prioritySelect.value = "high";
-          document.getElementById("task-notes").value = "";
-          loadTasks();
+        class ChatMessage {
+            constructor(content, sender) {
+                this.content = content;
+                this.sender = sender;
+                this.timestamp = new Date().toLocaleString();
+            }
         }
-      }
 
-      function completeTask(task) {
-        task.completed = !task.completed;
-        const tasks = JSON.parse(localStorage.getItem("sharedTasks")) || [];
-        const index = tasks.findIndex((t) => t.timestamp === task.timestamp);
-        if (index !== -1) {
-          tasks[index] = task;
-          localStorage.setItem("sharedTasks", JSON.stringify(tasks));
-          loadTasks();
-        }
-      }
+        const pubnub = new PubNub({
+            publishKey: 'pub-c-c92f97a6-ffe6-41cf-98cd-012e1e1de1a6',
+            subscribeKey: 'sub-c-15509578-7ad1-4d3e-b793-2201fcb2a8f8',
+            uuid: 'sec-c-YjJhNjJiNjAtYmIxOS00NDMzLTkyMmItNTMxOWI4NzJiNWIw'
+        });
 
-      function editTask(task) {
-        const newDescription = prompt(
-          "Enter new description:",
-          task.description
-        );
-        const newNotes = prompt("Enter new notes:", task.notes);
-        const newDueDate = prompt("Enter new due date:", task.dueDate);
-        const newPriority = prompt("Enter new priority:", task.priority);
-        if (
-          newDescription !== null ||
-          newNotes !== null ||
-          newDueDate !== null ||
-          newPriority !== null
-        ) {
-          const tasks = JSON.parse(localStorage.getItem("sharedTasks")) || [];
-          const index = tasks.findIndex((t) => t.timestamp === task.timestamp);
-          if (index !== -1) {
-            tasks[index].description =
-              newDescription !== null ? newDescription : task.description;
-            tasks[index].notes = newNotes !== null ? newNotes : task.notes;
-            tasks[index].dueDate =
-              newDueDate !== null ? newDueDate : task.dueDate;
-            tasks[index].priority =
-              newPriority !== null ? newPriority : task.priority;
-            localStorage.setItem("sharedTasks", JSON.stringify(tasks));
+        pubnub.addListener({
+            message: function(message) {
+                const { channel, message: data } = message;
+                if (channel === 'tasks') {
+                    handleTaskMessage(data);
+                } else if (channel === 'chat') {
+                    handleChatMessage(data);
+                }
+            }
+        });
+
+        pubnub.subscribe({
+            channels: ['tasks', 'chat']
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
             loadTasks();
-          }
-        }
-      }
-
-      function deleteTask(task) {
-        const tasks = JSON.parse(localStorage.getItem("sharedTasks")) || [];
-        const index = tasks.findIndex((t) => t.timestamp === task.timestamp);
-        if (index !== -1) {
-          tasks.splice(index, 1);
-          localStorage.setItem("sharedTasks", JSON.stringify(tasks));
-          loadTasks();
-        }
-      }
-
-      function filterTasks() {
-        // Implement task filtering based on due date and priority
-      }
-
-      function loadChatMessages() {
-        const chatMessages = document.getElementById("chat-messages");
-        chatMessages.innerHTML = "";
-        const messages =
-          JSON.parse(localStorage.getItem("sharedMessages")) || [];
-        messages.forEach(function (message) {
-          const listItem = document.createElement("li");
-          listItem.textContent = message;
-          chatMessages.appendChild(listItem);
+            loadChatMessages();
         });
-      }
 
-      function sendMessage() {
-        const messageInput = document.getElementById("chat-input");
-        const message = messageInput.value.trim();
-        if (message) {
-          const messages =
-            JSON.parse(localStorage.getItem("sharedMessages")) || [];
-          messages.push(message);
-          localStorage.setItem("sharedMessages", JSON.stringify(messages));
-          messageInput.value = "";
-          loadChatMessages();
+        function loadTasks() {
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            tasks.forEach(function(task) {
+                handleTaskMessage(JSON.stringify(task));
+            });
         }
-      }
+
+        function handleTaskMessage(data) {
+            const taskList = document.getElementById('task-list');
+            const task = JSON.parse(data);
+            const listItem = createTaskListItem(task);
+            taskList.appendChild(listItem);
+        }
+
+        function createTaskListItem(task) {
+            const listItem = document.createElement('li');
+            const taskText = `${task.description} 
+                             <span class="timestamp">${task.timestamp}</span>
+                             <span class="due-date">${task.dueDate ? '(Due: ' + task.dueDate + ')' : ''}</span>
+                             <span class="priority-${task.priority}">${task.priority}</span>
+                             <p>${task.notes}</p>`;
+            listItem.innerHTML = taskText;
+            if (task.completed) {
+                listItem.classList.add('completed');
+            }
+            const completeButton = document.createElement('button');
+            completeButton.textContent = 'Complete';
+            completeButton.addEventListener('click', function() {
+                completeTask(task);
+            });
+            listItem.appendChild(completeButton);
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.addEventListener('click', function() {
+                editTask(task);
+            });
+            listItem.appendChild(editButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                deleteTask(task);
+            });
+            listItem.appendChild(deleteButton);
+            return listItem;
+        }
+
+        function addTask() {
+            const description = document.getElementById('task-input').value.trim();
+            const notes = document.getElementById('task-notes').value.trim();
+            const dueDate = document.getElementById('due-date-input').value.trim();
+            const priority = document.getElementById('priority-select').value;
+            if (description) {
+                const task = new Task(description, notes, dueDate, priority);
+                saveTask(task);
+            }
+        }
+
+        function saveTask(task) {
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            tasks.push(task);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify(task)
+            });
+        }
+
+        function completeTask(task) {
+            task.completed = !task.completed;
+            updateTask(task);
+        }
+
+        function updateTask(task) {
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks[index] = task;
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify(task)
+                });
+            }
+        }
+
+        function editTask(task) {
+            // Implement task editing
+        }
+
+        function deleteTask(task) {
+            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks.splice(index, 1);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
+                });
+            }
+        }
+
+        function filterTasks() {
+            // Implement task filtering based on due date and priority
+        }
+
+        function loadChatMessages() {
+            const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            chatMessages.forEach(function(message) {
+                handleChatMessage(message);
+            });
+        }
+
+        function handleChatMessage(data) {
+            const chatMessages = document.getElementById('chat-messages');
+            const message = document.createElement('li');
+            message.textContent = data;
+            chatMessages.appendChild(message);
+        }
+
+        function sendMessage() {
+            const content = document.getElementById('chat-input').value.trim();
+            if (content) {
+                const message = new ChatMessage(content, 'User');
+                saveChatMessage(message);
+            }
+        }
+
+        function saveChatMessage(message) {
+            const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            chatMessages.push(message);
+            localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+            pubnub.publish({
+                channel: 'chat',
+                message: JSON.stringify(message)
+            });
+            document.getElementById('chat-input').value = '';
+        }
+
+        function clearChat() {
+            localStorage.removeItem('chatMessages');
+            document.getElementById('chat-messages').innerHTML = '';
+        }
     </script>
-  </body>
+</body>
 </html>
