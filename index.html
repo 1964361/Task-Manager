@@ -136,9 +136,9 @@
 
     <script>
         const pubnub = new PubNub({
-            publishKey: 'pub-c-dc4a39ba-05a8-4fa9-815d-1773cc8ad0ff',
-            subscribeKey: 'sub-c-2e2a75bf-b5b6-4d90-9bd4-7b7986c01284',
-            uuid: 'sec-c-MWRhZTRmNTMtMDc3ZC00YTIwLWJjNmMtMDQ2MmYxMTIxZDgx'
+            publishKey: 'pub-c-c92f97a6-ffe6-41cf-98cd-012e1e1de1a6',
+            subscribeKey: 'sub-c-15509578-7ad1-4d3e-b793-2201fcb2a8f8',
+            uuid: 'sec-c-YjJhNjJiNjAtYmIxOS00NDMzLTkyMmItNTMxOWI4NzJiNWIw'
         });
 
         pubnub.addListener({
@@ -163,46 +163,149 @@
 
         function loadTasks() {
             // Fetch tasks from PubNub
+            pubnub.history({
+                channel: 'tasks',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleTaskMessage(msg.entry);
+                    });
+                }
+            });
         }
 
         function handleTaskMessage(data) {
-            // Handle new task message received from PubNub
+            const taskList = document.getElementById('task-list');
+            const task = JSON.parse(data);
+            const listItem = createTaskListItem(task);
+            taskList.appendChild(listItem);
         }
 
         function createTaskListItem(task) {
-            // Create task list item
+            const listItem = document.createElement('li');
+            const taskText = `${task.description} 
+                             <span class="timestamp">${task.timestamp}</span>
+                             <span class="due-date">${task.dueDate ? '(Due: ' + task.dueDate + ')' : ''}</span>
+                             <span class="priority-${task.priority}">${task.priority}</span>
+                             <p>${task.notes}</p>`;
+            listItem.innerHTML = taskText;
+            if (task.completed) {
+                listItem.classList.add('completed');
+            }
+            const completeButton = document.createElement('button');
+            completeButton.textContent = 'Complete';
+            completeButton.addEventListener('click', function() {
+                completeTask(task);
+            });
+            listItem.appendChild(completeButton);
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.addEventListener('click', function() {
+                editTask(task);
+            });
+            listItem.appendChild(editButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                deleteTask(task);
+            });
+            listItem.appendChild(deleteButton);
+            return listItem;
         }
 
         function addTask() {
-            // Add task
+            const taskInput = document.getElementById('task-input');
+            const description = taskInput.value.trim();
+            const taskNotes = document.getElementById('task-notes').value.trim();
+            const dueDateInput = document.getElementById('due-date-input');
+            const dueDate = dueDateInput.value.trim();
+            const prioritySelect = document.getElementById('priority-select');
+            const priority = prioritySelect.value;
+            if (description) {
+                const timestamp = new Date().toLocaleString();
+                const task = {
+                    description,
+                    completed: false,
+                    timestamp,
+                    dueDate,
+                    priority,
+                    notes: taskNotes
+                };
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify(task)
+                });
+            }
         }
 
         function completeTask(task) {
-            // Mark task as completed
+            task.completed = !task.completed;
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify(task)
+            });
         }
 
         function editTask(task) {
-            // Edit task
+            const newDescription = prompt('Enter new description:', task.description);
+            const newNotes = prompt('Enter new notes:', task.notes);
+            const newDueDate = prompt('Enter new due date:', task.dueDate);
+            const newPriority = prompt('Enter new priority:', task.priority);
+            if (newDescription !== null || newNotes !== null || newDueDate !== null || newPriority !== null) {
+                task.description = newDescription !== null ? newDescription : task.description;
+                task.notes = newNotes !== null ? newNotes : task.notes;
+                task.dueDate = newDueDate !== null ? newDueDate : task.dueDate;
+                task.priority = newPriority !== null ? newPriority : task.priority;
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify(task)
+                });
+            }
         }
 
         function deleteTask(task) {
-            // Delete task
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
+            });
         }
 
         function filterTasks() {
-            // Filter tasks
+            // Implement task filtering based on due date and priority
         }
 
         function loadChatMessages() {
             // Fetch chat messages from PubNub
+            pubnub.history({
+                channel: 'chat',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleChatMessage(msg.entry);
+                    });
+                }
+            });
         }
 
         function handleChatMessage(data) {
-            // Handle new chat message received from PubNub
+            const chatMessages = document.getElementById('chat-messages');
+            const message = document.createElement('li');
+            message.textContent = data;
+            chatMessages.appendChild(message);
         }
 
         function sendMessage() {
-            // Send message
+            const messageInput = document.getElementById('chat-input');
+            const message = messageInput.value.trim();
+            if (message) {
+                pubnub.publish({
+                    channel: 'chat',
+                    message
+                });
+                messageInput.value = '';
+            }
         }
     </script>
 </body>
