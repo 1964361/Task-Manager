@@ -61,29 +61,43 @@
                 usernameInput.disabled = true;
                 chatInput.disabled = false;
                 chatInput.focus();
+
+                pubnub.history({
+                    channel: 'chat',
+                    count: 100, // how many items to fetch
+                }, function (status, response) {
+                    response.messages.forEach((msg) => {
+                        displayMessage(msg.entry);
+                    });
+                });
             }
         });
 
         chatInput.addEventListener('keydown', (event) => {
             if (event.keyCode === 13 && chatInput.value) {
+                const message = { username: pubnub.getUUID(), text: chatInput.value };
                 pubnub.publish({
                     channel: 'chat',
-                    message: { username: pubnub.getUUID(), text: chatInput.value }
+                    message: message
                 });
 
                 chatInput.value = '';
             }
         });
 
+        function displayMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.innerHTML = `<strong>${message.username}</strong>: ${message.text} <span>${new Date().toLocaleTimeString()}</span>`;
+            chatWindow.appendChild(messageElement);
+
+            // Scroll to the bottom of the chat window
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
         pubnub.addListener({
             message: function(msg) {
-                const messageElement = document.createElement('div');
-                messageElement.classList.add('message');
-                messageElement.innerHTML = `<strong>${msg.message.username}</strong>: ${msg.message.text} <span>${new Date().toLocaleTimeString()}</span>`;
-                chatWindow.appendChild(messageElement);
-
-                // Scroll to the bottom of the chat window
-                chatWindow.scrollTop = chatWindow.scrollHeight;
+                displayMessage(msg.message);
             }
         });
 
