@@ -131,7 +131,12 @@
         </div>
     </div>
 
+    <!-- Rebrandly Realtime Database SDK -->
+    <script src="https://sdk.rebrandly.com/realtime.js"></script>
+
     <script>
+        const database = new Rebrandly.Realtime.Database();
+
         document.addEventListener('DOMContentLoaded', function() {
             loadTasks();
             loadChatMessages();
@@ -140,34 +145,36 @@
         function loadTasks() {
             const taskList = document.getElementById('task-list');
             taskList.innerHTML = '';
-            fetch('https://jsonplaceholder.typicode.com/todos')
-                .then(response => response.json())
-                .then(data => {
-                    data.forEach(task => {
-                        const listItem = createTaskListItem(task);
-                        taskList.appendChild(listItem);
-                    });
+            database.ref('sharedTasks').once('value', function(snapshot) {
+                snapshot.forEach(function(childSnapshot) {
+                    const task = childSnapshot.val();
+                    const listItem = createTaskListItem(task);
+                    taskList.appendChild(listItem);
                 });
+            });
         }
 
         function createTaskListItem(task) {
             const listItem = document.createElement('li');
-            const taskText = `${task.title} 
-                             <span class="timestamp">${new Date().toLocaleString()}</span>
-                             <span class="due-date">${task.completed ? '(Completed)' : '(Pending)'}</span>
-                             <span class="priority-${task.completed ? 'low' : 'high'}">${task.completed ? 'Low Priority' : 'High Priority'}</span>
-                             <p>${task.completed ? 'Completed' : 'Pending'}</p>`;
+            const taskText = `${task.description} 
+                             <span class="timestamp">${task.timestamp}</span>
+                             <span class="due-date">${task.dueDate ? '(Due: ' + task.dueDate + ')' : ''}</span>
+                             <span class="priority-${task.priority}">${task.priority}</span>
+                             <p>${task.notes}</p>`;
             listItem.innerHTML = taskText;
+            if (task.completed) {
+                listItem.classList.add('completed');
+            }
             const editButton = document.createElement('button');
             editButton.textContent = 'Edit';
             editButton.addEventListener('click', function() {
-                editTask(task.id);
+                editTask(task.key);
             });
             listItem.appendChild(editButton);
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', function() {
-                deleteTask(task.id);
+                deleteTask(task.key);
             });
             listItem.appendChild(deleteButton);
             return listItem;
@@ -182,68 +189,39 @@
             const prioritySelect = document.getElementById('priority-select');
             const priority = prioritySelect.value;
             if (description) {
-                const newTask = { title: description, completed: false };
-                fetch('https://jsonplaceholder.typicode.com/todos', {
-                    method: 'POST',
-                    body: JSON.stringify(newTask),
-                    headers: {
-                        'Content-type': 'application/json; charset=UTF-8',
-                    },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log(data);
-                        taskInput.value = '';
-                        dueDateInput.value = '';
-                        prioritySelect.value = 'high';
-                        document.getElementById('task-notes').value = '';
-                        loadTasks();
-                    });
+                const timestamp = new Date().toLocaleString();
+                const newTaskRef = database.ref('sharedTasks').push();
+                newTaskRef.set({ description, completed: false, timestamp, dueDate, priority, notes: taskNotes });
+                taskInput.value = '';
+                dueDateInput.value = '';
+                prioritySelect.value = 'high';
+                document.getElementById('task-notes').value = '';
             }
         }
 
-        function completeTask(taskId) {
-            fetch(`https://jsonplaceholder.typicode.com/todos/${taskId}`, {
-                method: 'PATCH',
-                body: JSON.stringify({ completed: true }),
-                headers: {
-                    'Content-type': 'application/json; charset=UTF-8',
-                },
-            })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    loadTasks();
-                });
+        function completeTask(taskKey) {
+            const taskRef = database.ref(`sharedTasks/${taskKey}`);
+            taskRef.once('value', function(snapshot) {
+                const task = snapshot.val();
+                taskRef.update({ completed: !task.completed });
+            });
         }
 
-        function editTask(taskId) {
-            const newTitle = prompt('Enter new description:');
-            if (newTitle !== null) {
-                fetch(`https://jsonplaceholder.typicode.com/todos/${taskId}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({ title: newTitle }),
-                    headers: {
-                        'Content-type': 'application/json; charset=UTF-8',
-                    },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log(data);
-                        loadTasks();
-                    });
-            }
+        function editTask(taskKey) {
+            const taskRef = database.ref(`sharedTasks/${taskKey}`);
+            taskRef.once('value', function(snapshot) {
+                const task = snapshot.val();
+                const description = prompt('Enter new description:', task.description) || task.description;
+                const notes = prompt('Enter new notes:', task.notes) || task.notes;
+                const dueDate = prompt('Enter new due date:', task.dueDate) || task.dueDate;
+                const priority = prompt('Enter new priority:', task.priority) || task.priority;
+                taskRef.update({ description, notes, dueDate, priority });
+            });
         }
 
-        function deleteTask(taskId) {
-            fetch(`https://jsonplaceholder.typicode.com/todos/${taskId}`, {
-                method: 'DELETE',
-            })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    loadTasks();
-                });
+        function deleteTask(taskKey) {
+            const taskRef = database.ref(`sharedTasks/${taskKey}`);
+            taskRef.remove();
         }
 
         function filterTasks() {
@@ -253,34 +231,21 @@
         function loadChatMessages() {
             const chatMessages = document.getElementById('chat-messages');
             chatMessages.innerHTML = '';
-            fetch('https://jsonplaceholder.typicode.com/posts')
-                .then(response => response.json())
-                .then(data => {
-                    data.forEach(message => {
-                        const listItem = document.createElement('li');
-                        listItem.textContent = message.title;
-                        chatMessages.appendChild(listItem);
-                    });
-                });
+            database.ref('sharedMessages').on('child_added', function(snapshot) {
+                const message = snapshot.val();
+                const listItem = document.createElement('li');
+                listItem.textContent = message;
+                chatMessages.appendChild(listItem);
+            });
         }
 
         function sendMessage() {
             const messageInput = document.getElementById('chat-input');
             const message = messageInput.value.trim();
             if (message) {
-                fetch('https://jsonplaceholder.typicode.com/posts', {
-                    method: 'POST',
-                    body: JSON.stringify({ title: message }),
-                    headers: {
-                        'Content-type': 'application/json; charset=UTF-8',
-                    },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log(data);
-                        messageInput.value = '';
-                        loadChatMessages();
-                    });
+                const newMessageRef = database.ref('sharedMessages').push();
+                newMessageRef.set(message);
+                messageInput.value = '';
             }
         }
     </script>
