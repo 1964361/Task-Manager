@@ -5,97 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Advanced Task Manager</title>
     <style>
-        /* Styles remain the same */
-            body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-        background-color: #f7f7f7;
-      }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f7f7;
+        }
 
-      .container {
-        max-width: 800px;
-        margin: 20px auto;
-        padding: 20px;
-        background-color: #fff;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
 
-      h1,
-      h2 {
-        color: #333;
-      }
+        h1, h2 {
+            color: #333;
+        }
 
-      .task-manager,
-      .chat {
-        margin-bottom: 20px;
-      }
+        .task-manager, .chat {
+            margin-bottom: 20px;
+        }
 
-      .task-manager input[type="text"],
-      .task-manager textarea,
-      .chat input[type="text"] {
-        width: calc(100% - 80px);
-        margin-bottom: 10px;
-        padding: 8px;
-        font-size: 16px;
-      }
+        .task-manager input[type="text"], .task-manager textarea, .chat input[type="text"] {
+            width: calc(100% - 80px);
+            margin-bottom: 10px;
+            padding: 8px;
+            font-size: 16px;
+        }
 
-      .task-manager button,
-      .chat button {
-        padding: 8px 15px;
-        font-size: 16px;
-        background-color: #4caf50;
-        color: #fff;
-        border: none;
-        cursor: pointer;
-      }
+        .task-manager button, .chat button {
+            padding: 8px 15px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
 
-      .task-manager button:hover,
-      .chat button:hover {
-        background-color: #45a049;
-      }
+        .task-manager button:hover, .chat button:hover {
+            background-color: #45a049;
+        }
 
-      ul {
-        list-style-type: none;
-        padding: 0;
-      }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
 
-      li {
-        margin-bottom: 10px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #ccc;
-      }
+        li {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+        }
 
-      .completed {
-        text-decoration: line-through;
-        color: #888;
-      }
+        .completed {
+            text-decoration: line-through;
+            color: #888;
+        }
 
-      .timestamp {
-        font-size: 12px;
-        color: #888;
-      }
+        .timestamp {
+            font-size: 12px;
+            color: #888;
+        }
 
-      .due-date {
-        font-weight: bold;
-        color: #ff0000;
-      }
+        .due-date {
+            font-weight: bold;
+            color: #ff0000;
+        }
 
-      .priority-high {
-        color: red;
-      }
+        .priority-high {
+            color: red;
+        }
 
-      .priority-medium {
-        color: orange;
-      }
+        .priority-medium {
+            color: orange;
+        }
 
-      .priority-low {
-        color: green;
-      }
+        .priority-low {
+            color: green;
+        }
 
-      .task-buttons {
-        margin-top: 5px;
-      }
+        .task-buttons {
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -131,12 +124,7 @@
         </div>
     </div>
 
-    <!-- Rebrandly Realtime Database SDK -->
-    <script src="https://sdk.rebrandly.com/realtime.js"></script>
-
     <script>
-        const database = new Rebrandly.Realtime.Database();
-
         document.addEventListener('DOMContentLoaded', function() {
             loadTasks();
             loadChatMessages();
@@ -145,12 +133,10 @@
         function loadTasks() {
             const taskList = document.getElementById('task-list');
             taskList.innerHTML = '';
-            database.ref('sharedTasks').once('value', function(snapshot) {
-                snapshot.forEach(function(childSnapshot) {
-                    const task = childSnapshot.val();
-                    const listItem = createTaskListItem(task);
-                    taskList.appendChild(listItem);
-                });
+            const tasks = JSON.parse(localStorage.getItem('sharedTasks')) || [];
+            tasks.forEach(function(task) {
+                const listItem = createTaskListItem(task);
+                taskList.appendChild(listItem);
             });
         }
 
@@ -165,16 +151,22 @@
             if (task.completed) {
                 listItem.classList.add('completed');
             }
+            const completeButton = document.createElement('button');
+            completeButton.textContent = 'Complete';
+            completeButton.addEventListener('click', function() {
+                completeTask(task);
+            });
+            listItem.appendChild(completeButton);
             const editButton = document.createElement('button');
             editButton.textContent = 'Edit';
             editButton.addEventListener('click', function() {
-                editTask(task.key);
+                editTask(task);
             });
             listItem.appendChild(editButton);
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', function() {
-                deleteTask(task.key);
+                deleteTask(task);
             });
             listItem.appendChild(deleteButton);
             return listItem;
@@ -190,49 +182,66 @@
             const priority = prioritySelect.value;
             if (description) {
                 const timestamp = new Date().toLocaleString();
-                const newTaskRef = database.ref('sharedTasks').push();
-                newTaskRef.set({ description, completed: false, timestamp, dueDate, priority, notes: taskNotes });
+                const tasks = JSON.parse(localStorage.getItem('sharedTasks')) || [];
+                tasks.push({ description, completed: false, timestamp, dueDate, priority, notes: taskNotes });
+                localStorage.setItem('sharedTasks', JSON.stringify(tasks));
                 taskInput.value = '';
                 dueDateInput.value = '';
                 prioritySelect.value = 'high';
                 document.getElementById('task-notes').value = '';
+                loadTasks();
             }
         }
 
-        function completeTask(taskKey) {
-            const taskRef = database.ref(`sharedTasks/${taskKey}`);
-            taskRef.once('value', function(snapshot) {
-                const task = snapshot.val();
-                taskRef.update({ completed: !task.completed });
-            });
+        function completeTask(task) {
+            task.completed = !task.completed;
+            const tasks = JSON.parse(localStorage.getItem('sharedTasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks[index] = task;
+                localStorage.setItem('sharedTasks', JSON.stringify(tasks));
+                loadTasks();
+            }
         }
 
-        function editTask(taskKey) {
-            const taskRef = database.ref(`sharedTasks/${taskKey}`);
-            taskRef.once('value', function(snapshot) {
-                const task = snapshot.val();
-                const description = prompt('Enter new description:', task.description) || task.description;
-                const notes = prompt('Enter new notes:', task.notes) || task.notes;
-                const dueDate = prompt('Enter new due date:', task.dueDate) || task.dueDate;
-                const priority = prompt('Enter new priority:', task.priority) || task.priority;
-                taskRef.update({ description, notes, dueDate, priority });
-            });
+        function editTask(task) {
+            const newDescription = prompt('Enter new description:', task.description);
+            const newNotes = prompt('Enter new notes:', task.notes);
+            const newDueDate = prompt('Enter new due date:', task.dueDate);
+            const newPriority = prompt('Enter new priority:', task.priority);
+            if (newDescription !== null || newNotes !== null || newDueDate !== null || newPriority !== null) {
+                const tasks = JSON.parse(localStorage.getItem('sharedTasks')) || [];
+                const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+                if (index !== -1) {
+                    tasks[index].description = newDescription !== null ? newDescription : task.description;
+                    tasks[index].notes = newNotes !== null ? newNotes : task.notes;
+                    tasks[index].dueDate = newDueDate !== null ? newDueDate : task.dueDate;
+                    tasks[index].priority = newPriority !== null ? newPriority : task.priority;
+                    localStorage.setItem('sharedTasks', JSON.stringify(tasks));
+                    loadTasks();
+                }
+            }
         }
 
-        function deleteTask(taskKey) {
-            const taskRef = database.ref(`sharedTasks/${taskKey}`);
-            taskRef.remove();
+        function deleteTask(task) {
+            const tasks = JSON.parse(localStorage.getItem('sharedTasks')) || [];
+            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
+            if (index !== -1) {
+                tasks.splice(index, 1);
+                localStorage.setItem('sharedTasks', JSON.stringify(tasks));
+                loadTasks();
+            }
         }
 
         function filterTasks() {
-            // Filter tasks similar to the previous implementation
+            // Implement task filtering based on due date and priority
         }
 
         function loadChatMessages() {
             const chatMessages = document.getElementById('chat-messages');
             chatMessages.innerHTML = '';
-            database.ref('sharedMessages').on('child_added', function(snapshot) {
-                const message = snapshot.val();
+            const messages = JSON.parse(localStorage.getItem('sharedMessages')) || [];
+            messages.forEach(function(message) {
                 const listItem = document.createElement('li');
                 listItem.textContent = message;
                 chatMessages.appendChild(listItem);
@@ -243,9 +252,11 @@
             const messageInput = document.getElementById('chat-input');
             const message = messageInput.value.trim();
             if (message) {
-                const newMessageRef = database.ref('sharedMessages').push();
-                newMessageRef.set(message);
+                const messages = JSON.parse(localStorage.getItem('sharedMessages')) || [];
+                messages.push(message);
+                localStorage.setItem('sharedMessages', JSON.stringify(messages));
                 messageInput.value = '';
+                loadChatMessages();
             }
         }
     </script>
