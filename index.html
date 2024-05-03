@@ -1,109 +1,308 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Advanced Chat Site</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Task Manager</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-        }
+        /* Styles remain the same */
+              body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f7f7f7;
+      }
 
-        #chat-container {
-            width: 500px;
-            margin: auto;
-        }
+      .container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #fff;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
 
-        #chat-window {
-            height: 400px;
-            border: 1px solid #999;
-            padding: 10px;
-            overflow-y: scroll;
-        }
+      h1,
+      h2 {
+        color: #333;
+      }
 
-        .message {
-            margin-bottom: 10px;
-        }
+      .task-manager,
+      .chat {
+        margin-bottom: 20px;
+      }
 
-        .message span {
-            color: #888;
-            font-size: 0.8em;
-        }
+      .task-manager input[type="text"],
+      .task-manager textarea,
+      .chat input[type="text"] {
+        width: calc(100% - 80px);
+        margin-bottom: 10px;
+        padding: 8px;
+        font-size: 16px;
+      }
 
-        #chat-input {
-            width: 100%;
-            line-height: 2em;
-            border: 1px solid #999;
-            border-radius: 5px;
-            padding: 5px;
-        }
+      .task-manager button,
+      .chat button {
+        padding: 8px 15px;
+        font-size: 16px;
+        background-color: #4caf50;
+        color: #fff;
+        border: none;
+        cursor: pointer;
+      }
+
+      .task-manager button:hover,
+      .chat button:hover {
+        background-color: #45a049;
+      }
+
+      ul {
+        list-style-type: none;
+        padding: 0;
+      }
+
+      li {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ccc;
+      }
+
+      .completed {
+        text-decoration: line-through;
+        color: #888;
+      }
+
+      .timestamp {
+        font-size: 12px;
+        color: #888;
+      }
+
+      .due-date {
+        font-weight: bold;
+        color: #ff0000;
+      }
+
+      .priority-high {
+        color: red;
+      }
+
+      .priority-medium {
+        color: orange;
+      }
+
+      .priority-low {
+        color: green;
+      }
+
+      .task-buttons {
+        margin-top: 5px;
+      }
     </style>
 </head>
 <body>
-    <div id="chat-container">
-        <input type="text" id="username-input" placeholder="Enter your username..." />
-        <div id="chat-window"></div>
-        <input type="text" id="chat-input" placeholder="Type your message here..." disabled />
+    <div class="container">
+        <h1>Advanced Task Manager</h1>
+        <div class="task-manager">
+            <h2>Tasks</h2>
+            <ul id="task-list"></ul>
+            <input type="text" id="task-input" placeholder="Task description">
+            <textarea id="task-notes" placeholder="Task notes"></textarea>
+            <input type="date" id="due-date-input">
+            <select id="priority-select">
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+            </select>
+            <button onclick="addTask()">Add Task</button>
+            <label for="due-date-filter">Filter by Due Date:</label>
+            <input type="date" id="due-date-filter" onchange="filterTasks()">
+            <label for="priority-filter">Filter by Priority:</label>
+            <select id="priority-filter" onchange="filterTasks()">
+                <option value="">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+            </select>
+        </div>
+        <div class="chat">
+            <h2>Chat</h2>
+            <ul id="chat-messages"></ul>
+            <input type="text" id="chat-input" placeholder="Type a message">
+            <button onclick="sendMessage()">Send</button>
+            <button onclick="clearChat()">Clear Chat</button>
+        </div>
     </div>
-    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.21.7.js"></script>
+
+    <!-- PubNub SDK -->
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.29.7.min.js"></script>
+
     <script>
         const pubnub = new PubNub({
-            subscribeKey: 'sub-c-15509578-7ad1-4d3e-b793-2201fcb2a8f8',
             publishKey: 'pub-c-c92f97a6-ffe6-41cf-98cd-012e1e1de1a6',
+            subscribeKey: 'sub-c-15509578-7ad1-4d3e-b793-2201fcb2a8f8',
             uuid: 'sec-c-YjJhNjJiNjAtYmIxOS00NDMzLTkyMmItNTMxOWI4NzJiNWIw'
         });
 
-        const usernameInput = document.querySelector('#username-input');
-        const chatInput = document.querySelector('#chat-input');
-        const chatWindow = document.querySelector('#chat-window');
-
-        usernameInput.addEventListener('keydown', (event) => {
-            if (event.keyCode === 13 && usernameInput.value) {
-                pubnub.setUUID(usernameInput.value);
-                usernameInput.disabled = true;
-                chatInput.disabled = false;
-                chatInput.focus();
-
-                pubnub.history({
-                    channel: 'chat',
-                    count: 100, // how many items to fetch
-                }, function (status, response) {
-                    response.messages.forEach((msg) => {
-                        displayMessage(msg.entry);
-                    });
-                });
-            }
-        });
-
-        chatInput.addEventListener('keydown', (event) => {
-            if (event.keyCode === 13 && chatInput.value) {
-                const message = { username: pubnub.getUUID(), text: chatInput.value };
-                pubnub.publish({
-                    channel: 'chat',
-                    message: message
-                });
-
-                chatInput.value = '';
-            }
-        });
-
-        function displayMessage(message) {
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('message');
-            messageElement.innerHTML = `<strong>${message.username}</strong>: ${message.text} <span>${new Date().toLocaleTimeString()}</span>`;
-            chatWindow.appendChild(messageElement);
-
-            // Scroll to the bottom of the chat window
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-        }
-
         pubnub.addListener({
-            message: function(msg) {
-                displayMessage(msg.message);
+            message: function(message) {
+                const { channel, message: data } = message;
+                if (channel === 'tasks') {
+                    handleTaskMessage(data);
+                } else if (channel === 'chat') {
+                    handleChatMessage(data);
+                }
             }
         });
 
         pubnub.subscribe({
-            channels: ['chat']
+            channels: ['tasks', 'chat']
         });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTasks();
+            loadChatMessages();
+        });
+
+        function loadTasks() {
+            pubnub.history({
+                channel: 'tasks',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleTaskMessage(msg.entry);
+                    });
+                }
+            });
+        }
+
+        function handleTaskMessage(data) {
+            const taskList = document.getElementById('task-list');
+            const task = JSON.parse(data);
+            const listItem = createTaskListItem(task);
+            taskList.appendChild(listItem);
+        }
+
+        function createTaskListItem(task) {
+            const listItem = document.createElement('li');
+            const taskText = `${task.description} 
+                             <span class="timestamp">${task.timestamp}</span>
+                             <span class="due-date">${task.dueDate ? '(Due: ' + task.dueDate + ')' : ''}</span>
+                             <span class="priority-${task.priority}">${task.priority}</span>
+                             <p>${task.notes}</p>`;
+            listItem.innerHTML = taskText;
+            if (task.completed) {
+                listItem.classList.add('completed');
+            }
+            const completeButton = document.createElement('button');
+            completeButton.textContent = 'Complete';
+            completeButton.addEventListener('click', function() {
+                completeTask(task);
+            });
+            listItem.appendChild(completeButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                deleteTask(task);
+            });
+            listItem.appendChild(deleteButton);
+            return listItem;
+        }
+
+        function addTask() {
+            const taskInput = document.getElementById('task-input');
+            const description = taskInput.value.trim();
+            const taskNotes = document.getElementById('task-notes').value.trim();
+            const dueDateInput = document.getElementById('due-date-input');
+            const dueDate = dueDateInput.value.trim();
+            const prioritySelect = document.getElementById('priority-select');
+            const priority = prioritySelect.value;
+            if (description) {
+                const timestamp = new Date().toLocaleString();
+                const task = {
+                    description,
+                    completed: false,
+                    timestamp,
+                    dueDate,
+                    priority,
+                    notes: taskNotes
+                };
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify(task)
+                });
+            }
+        }
+
+        function completeTask(task) {
+            task.completed = !task.completed;
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify(task)
+            });
+        }
+
+        function deleteTask(task) {
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
+            });
+        }
+
+        function filterTasks() {
+            // Implement task filtering based on due date and priority
+        }
+
+        function loadChatMessages() {
+            pubnub.history({
+                channel: 'chat',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleChatMessage(msg.entry);
+                    });
+                }
+            });
+        }
+
+        function handleChatMessage(data) {
+            const chatMessages = document.getElementById('chat-messages');
+            const message = document.createElement('li');
+            message.textContent = data;
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                deleteChatMessage(data);
+            });
+            message.appendChild(deleteButton);
+            chatMessages.appendChild(message);
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('chat-input');
+            const message = messageInput.value.trim();
+            if (message) {
+                pubnub.publish({
+                    channel: 'chat',
+                    message
+                });
+                messageInput.value = '';
+            }
+        }
+
+        function deleteChatMessage(message) {
+            pubnub.publish({
+                channel: 'chat',
+                message: JSON.stringify({ action: 'delete', message })
+            });
+        }
+
+        function clearChat() {
+            pubnub.publish({
+                channel: 'chat',
+                message: JSON.stringify({ action: 'clear' })
+            });
+        }
     </script>
 </body>
 </html>
