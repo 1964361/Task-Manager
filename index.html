@@ -128,7 +128,6 @@
             <ul id="chat-messages"></ul>
             <input type="text" id="chat-input" placeholder="Type a message">
             <button onclick="sendMessage()">Send</button>
-            <button onclick="clearChat()">Clear Chat</button>
         </div>
     </div>
 
@@ -163,6 +162,7 @@
         });
 
         function loadTasks() {
+            // Fetch tasks from PubNub
             pubnub.history({
                 channel: 'tasks',
                 count: 100
@@ -199,6 +199,12 @@
                 completeTask(task);
             });
             listItem.appendChild(completeButton);
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.addEventListener('click', function() {
+                editTask(task);
+            });
+            listItem.appendChild(editButton);
             const deleteButton = document.createElement('button');
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', function() {
@@ -241,6 +247,23 @@
             });
         }
 
+        function editTask(task) {
+            const newDescription = prompt('Enter new description:', task.description);
+            const newNotes = prompt('Enter new notes:', task.notes);
+            const newDueDate = prompt('Enter new due date:', task.dueDate);
+            const newPriority = prompt('Enter new priority:', task.priority);
+            if (newDescription !== null || newNotes !== null || newDueDate !== null || newPriority !== null) {
+                task.description = newDescription !== null ? newDescription : task.description;
+                task.notes = newNotes !== null ? newNotes : task.notes;
+                task.dueDate = newDueDate !== null ? newDueDate : task.dueDate;
+                task.priority = newPriority !== null ? newPriority : task.priority;
+                pubnub.publish({
+                    channel: 'tasks',
+                    message: JSON.stringify(task)
+                });
+            }
+        }
+
         function deleteTask(task) {
             pubnub.publish({
                 channel: 'tasks',
@@ -253,6 +276,7 @@
         }
 
         function loadChatMessages() {
+            // Fetch chat messages from PubNub
             pubnub.history({
                 channel: 'chat',
                 count: 100
@@ -269,12 +293,6 @@
             const chatMessages = document.getElementById('chat-messages');
             const message = document.createElement('li');
             message.textContent = data;
-            const deleteButton = document.createElement('button');
-            deleteButton.textContent = 'Delete';
-            deleteButton.addEventListener('click', function() {
-                deleteChatMessage(data);
-            });
-            message.appendChild(deleteButton);
             chatMessages.appendChild(message);
         }
 
@@ -288,20 +306,6 @@
                 });
                 messageInput.value = '';
             }
-        }
-
-        function deleteChatMessage(message) {
-            pubnub.publish({
-                channel: 'chat',
-                message: JSON.stringify({ action: 'delete', message })
-            });
-        }
-
-        function clearChat() {
-            pubnub.publish({
-                channel: 'chat',
-                message: JSON.stringify({ action: 'clear' })
-            });
         }
     </script>
 </body>
