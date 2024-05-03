@@ -163,9 +163,15 @@
         });
 
         function loadTasks() {
-            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-            tasks.forEach(function(task) {
-                handleTaskMessage(JSON.stringify(task));
+            pubnub.history({
+                channel: 'tasks',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleTaskMessage(msg.entry);
+                    });
+                }
             });
         }
 
@@ -220,9 +226,6 @@
                     priority,
                     notes: taskNotes
                 };
-                const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-                tasks.push(task);
-                localStorage.setItem('tasks', JSON.stringify(tasks));
                 pubnub.publish({
                     channel: 'tasks',
                     message: JSON.stringify(task)
@@ -232,29 +235,17 @@
 
         function completeTask(task) {
             task.completed = !task.completed;
-            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
-            if (index !== -1) {
-                tasks[index] = task;
-                localStorage.setItem('tasks', JSON.stringify(tasks));
-                pubnub.publish({
-                    channel: 'tasks',
-                    message: JSON.stringify(task)
-                });
-            }
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify(task)
+            });
         }
 
         function deleteTask(task) {
-            const tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-            const index = tasks.findIndex(t => t.timestamp === task.timestamp);
-            if (index !== -1) {
-                tasks.splice(index, 1);
-                localStorage.setItem('tasks', JSON.stringify(tasks));
-                pubnub.publish({
-                    channel: 'tasks',
-                    message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
-                });
-            }
+            pubnub.publish({
+                channel: 'tasks',
+                message: JSON.stringify({ action: 'delete', timestamp: task.timestamp })
+            });
         }
 
         function filterTasks() {
@@ -262,9 +253,15 @@
         }
 
         function loadChatMessages() {
-            const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-            chatMessages.forEach(function(message) {
-                handleChatMessage(message);
+            pubnub.history({
+                channel: 'chat',
+                count: 100
+            }, function(status, response) {
+                if (status.statusCode === 200) {
+                    response.messages.forEach(function(msg) {
+                        handleChatMessage(msg.entry);
+                    });
+                }
             });
         }
 
@@ -272,6 +269,12 @@
             const chatMessages = document.getElementById('chat-messages');
             const message = document.createElement('li');
             message.textContent = data;
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', function() {
+                deleteChatMessage(data);
+            });
+            message.appendChild(deleteButton);
             chatMessages.appendChild(message);
         }
 
@@ -279,9 +282,6 @@
             const messageInput = document.getElementById('chat-input');
             const message = messageInput.value.trim();
             if (message) {
-                const chatMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-                chatMessages.push(message);
-                localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
                 pubnub.publish({
                     channel: 'chat',
                     message
@@ -290,9 +290,18 @@
             }
         }
 
+        function deleteChatMessage(message) {
+            pubnub.publish({
+                channel: 'chat',
+                message: JSON.stringify({ action: 'delete', message })
+            });
+        }
+
         function clearChat() {
-            localStorage.removeItem('chatMessages');
-            document.getElementById('chat-messages').innerHTML = '';
+            pubnub.publish({
+                channel: 'chat',
+                message: JSON.stringify({ action: 'clear' })
+            });
         }
     </script>
 </body>
